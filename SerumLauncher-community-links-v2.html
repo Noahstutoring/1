@@ -1,0 +1,2598 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SerumLauncher</title>
+
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #090909;
+  --grid: rgba(255,255,255,.055);
+  --muted: #a0a0a6;
+  --border: #2b2c30;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: #f7f7f8;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+.page {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(ellipse at 50% 0%, #14212a 0%, #090d12 52%, #050608 100%);
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 0%, #14212a 0%, #090d12 52%, #050608 100%);
+  background-size: 40px 40px;
+  background-position: -1px -1px;
+}
+
+/* Animated rain layer sits behind the launcher content. */
+.rain-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .72;
+}
+.brand, .apps, .disclaimer { z-index: 1; }
+
+.brand {
+  position: absolute;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  white-space: nowrap;
+}
+
+.mark {
+  width: 57px;
+  height: 43px;
+  flex: 0 0 auto;
+}
+
+.wordmark {
+  font-size: clamp(38px, 5.3vw, 54px);
+  line-height: 1;
+  letter-spacing: -2.4px;
+  font-weight: 800;
+}
+
+.disclaimer {
+  display: none;
+  position: absolute;
+  top: 129px;
+  left: 64%;
+  color: #99999f;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.apps {
+  display: none;
+  position: absolute;
+  top: 195px;
+  left: 35.4%;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  gap: 12px;
+}
+
+.app-card {
+  cursor: pointer;
+  min-height: 94px;
+  padding: 18px 22px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 18px;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,.17),
+    rgba(255,255,255,.055) 48%,
+    rgba(120,220,255,.075));
+  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  backdrop-filter: blur(24px) saturate(165%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28),
+              inset 0 -1px 0 rgba(255,255,255,.06),
+              0 12px 34px rgba(0,0,0,.28),
+              0 0 22px rgba(90,210,255,.035);
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.app-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255,255,255,.13), transparent 36%, transparent 68%, rgba(255,255,255,.045));
+}
+
+.app-card:hover {
+  border-color: rgba(110,230,255,.68);
+  background: linear-gradient(135deg, rgba(255,255,255,.22), rgba(255,255,255,.075) 48%, rgba(34,211,230,.13));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.34), 0 16px 38px rgba(0,0,0,.34), 0 0 26px rgba(34,211,230,.12);
+  transform: translateY(-2px);
+}
+
+.app-icon {
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(120,230,255,.42);
+  border-radius: 13px;
+  background: linear-gradient(145deg, rgba(34,211,230,.22), rgba(11,32,37,.45));
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 4px 12px rgba(0,0,0,.12);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.app-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.app-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.app-description {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (max-width: 700px) {
+  .brand {
+    top: 32px;
+    max-width: calc(100vw - 24px);
+    gap: 8px;
+  }
+  .mark { width: 40px; height: 32px; }
+  .wordmark { font-size: clamp(20px, 5.5vw, 34px); letter-spacing: -1px; }
+  .disclaimer {
+    left: 8%;
+    top: 105px;
+  }
+  .apps {
+    left: 16px;
+    top: 125px;
+    width: calc(100vw - 32px);
+  }
+}
+
+
+/* Scroll-friendly layout: let the launcher grow with its app list. */
+html, body { min-height: 100%; height: auto; }
+body { overflow-x: hidden; overflow-y: auto; }
+.page {
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
+  padding: 42px 16px 48px;
+}
+.brand {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.apps {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 460px;
+  max-width: 100%;
+  margin: 65px auto 0;
+  display: grid;
+}
+.rain-canvas { height: 100%; }
+@media (max-width: 700px) {
+  .page { padding-top: 32px; }
+  .brand { top: auto; left: auto; }
+  .apps {
+    top: auto;
+    left: auto;
+    width: 100%;
+    margin-top: 55px;
+  }
+}
+
+</style>
+</head>
+
+<body>
+<main class="page">
+  <canvas class="rain-canvas" id="rain" aria-hidden="true"></canvas>
+
+  <header class="brand" aria-label="SerumLauncher">
+    <svg class="mark" viewBox="0 0 58 44" aria-hidden="true">
+      <defs>
+        <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#79e5ff"/>
+          <stop offset="1" stop-color="#5267ff"/>
+        </linearGradient>
+        <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#c78aff"/>
+          <stop offset="1" stop-color="#f05bd7"/>
+        </linearGradient>
+        <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#a9f6b4"/>
+          <stop offset="1" stop-color="#4ebfa0"/>
+        </linearGradient>
+      </defs>
+      <path d="M1 36 L14 12 Q16 8 19 12 L31 36 Q33 41 27 41 L5 41 Q-1 41 1 36Z" fill="url(#green)"/>
+      <path d="M15 36 L28 3 Q30 -1 33 4 L49 36 Q51 41 46 41 L19 41 Q13 41 15 36Z" fill="url(#blue)"/>
+      <path d="M34 36 L45 16 Q47 12 50 17 L57 36 Q59 41 54 41 L38 41 Q31 41 34 36Z" fill="url(#purple)"/>
+    </svg>
+    <div class="wordmark">*SerumLauncher Beta v0.12</div>
+  </header>
+
+  <div class="disclaimer">If anyone asks, this is a research project.</div>
+
+  <section class="apps" aria-label="Apps">
+
+    <!-- serumOS -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://serumos.best/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://serumos.best/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linejoin="round">
+          <path d="M12 2.8 20 7.2 12 11.7 4 7.2 12 2.8Z"/>
+          <path d="M4 7.2v9.3l8 4.5 8-4.5V7.2"/>
+          <path d="M12 11.7V21"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">serumOS</div>
+        <div class="app-description">Play Minecraft in your browser</div>
+      </div>
+    </article>
+
+    <!-- staticOS -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://staticos.surge.sh/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://staticos.surge.sh/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linejoin="round">
+          <path d="M4 5.5h16v13H4z"/>
+          <path d="M4 9h16M8 5.5v3.5M12 5.5v3.5"/>
+          <path d="m8 13 2.5 2.5L16 11"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">staticOS (Beta)</div>
+        <div class="app-description">Open staticOS in your browser</div>
+      </div>
+    </article>
+
+    <!-- serumOS 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/mathnook/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/mathnook/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linejoin="round">
+          <rect x="4" y="4" width="16" height="16" rx="3"/>
+          <path d="M8 9h8M8 12h8M8 15h5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">*serumos 2</div>
+        <div class="app-description">Open serumOS 2 in your browser</div>
+      </div>
+    </article>
+
+    <!-- kiwigames -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://kahoot.si/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://kahoot.si/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 7H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3l3 3v-5"/>
+          <path d="M16 7h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-3l-3 3v-5"/>
+          <path d="M8 11h.01M16 11h.01M10 14h4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">kiwigames</div>
+        <div class="app-description">Open kiwigames in about:blank</div>
+      </div>
+    </article>
+
+    <!-- lucide v3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/aphistory/study.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/aphistory/study.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+          <path d="M4 5.5v16M8 7h8M8 11h8M8 15h5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">lucide v3</div>
+        <div class="app-description">Open lucide v3 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- opium v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/opiumbest/study.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/opiumbest/study.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v18M3 12h18"/>
+          <circle cx="12" cy="12" r="8.5"/>
+          <path d="M8 8l8 8M16 8l-8 8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">opium v1</div>
+        <div class="app-description">Open opium v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- opium v2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/npm/opiumbest/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/npm/opiumbest/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 4h14v16H5z"/>
+          <path d="M8 8h8M8 12h8M8 16h5"/>
+          <path d="m16 15 2 2 3-4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">opium v2</div>
+        <div class="app-description">Open opium v2 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- galaxy OS -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://classroom.progressiveschoolhouse.org/os')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://classroom.progressiveschoolhouse.org/os')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8.5"/>
+          <ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-28 12 12)"/>
+          <circle cx="15.5" cy="7" r="1" fill="#22d3e6" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">galaxy OS</div>
+        <div class="app-description">Open galaxy OS in about:blank</div>
+      </div>
+    </article>
+
+    <!-- lumina v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://d2ujn2fcrmrajy.cloudfront.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://d2ujn2fcrmrajy.cloudfront.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5 14.8 9l6.7 3-6.7 2.8L12 21.5l-2.8-6.7L2.5 12l6.7-3L12 2.5Z"/>
+          <path d="m19 2 .8 2.2L22 5l-2.2.8L19 8l-.8-2.2L16 5l2.2-.8L19 2Z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">lumina v1</div>
+        <div class="app-description">Open lumina v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- zaka -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://lightspeedbypass.s3.us-east-2.amazonaws.com/index.xml')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://lightspeedbypass.s3.us-east-2.amazonaws.com/index.xml')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6h16M4 12h16M4 18h16"/>
+          <circle cx="8" cy="6" r="1.5" fill="#22d3e6" stroke="none"/>
+          <circle cx="15" cy="12" r="1.5" fill="#22d3e6" stroke="none"/>
+          <circle cx="10" cy="18" r="1.5" fill="#22d3e6" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">zaka</div>
+        <div class="app-description">Open zaka in about:blank</div>
+      </div>
+    </article>
+
+    <!-- mizu v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://hdmiplugs.hdm1.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://hdmiplugs.hdm1.net/')}" >
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22d3e6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5S5 10 5 14.5a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5Z"/>
+          <path d="M8.5 15.5a3.5 3.5 0 0 0 3.5 3.5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">mizu v1</div>
+        <div class="app-description">Open mizu v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- sakura OS -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://d850df9ky1diz.cloudfront.net/SakuraOS%20v1.3.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://d850df9ky1diz.cloudfront.net/SakuraOS%20v1.3.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 12c-2.3-1.1-3.1-3.1-1.8-4.7 1-1.2 2.4-.7 2.8.8.5-1.5 1.9-2 2.9-.8 1.3 1.6.5 3.6-1.8 4.7 2.5-.2 4.1 1.3 3.5 3.2-.5 1.5-2 1.6-3.1.4.3 1.7-.7 2.8-2.2 2.8s-2.5-1.1-2.2-2.8c-1.1 1.2-2.6 1.1-3.1-.4-.6-1.9 1-3.4 3.5-3.2Z"/>
+          <path d="M12 12v9"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sakura OS</div>
+        <div class="app-description">Open sakura OS in about:blank</div>
+      </div>
+    </article>
+
+    <!-- rook v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/rookstudy/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/rookstudy/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 21h14M7 21V9l2-2V4h2v3h2V4h2v3l2 2v12M7 12h10M9 16h6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">rook v1</div>
+        <div class="app-description">Open rook v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Astral -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/studyk12/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/studyk12/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 2 2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z"/>
+          <path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">Astral</div>
+        <div class="app-description">Open Astral in about:blank</div>
+      </div>
+    </article>
+
+    <!-- noahs tut v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://whm.51-81-220-179.cprapid.com.89-167-111-35.sslip.io/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://whm.51-81-220-179.cprapid.com.89-167-111-35.sslip.io/')}" >
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+          <path d="M4 5.5v16M8 7h8M8 11h8M8 15h5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">noahs tut v1</div>
+        <div class="app-description">Open noahs tut v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- void network -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://voidradio.freetls.fastly.net/modules/chemistry/unit-8-YjZlZGU1NTZiLjc2bFRKZGs1NHdkeA')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://voidradio.freetls.fastly.net/modules/chemistry/unit-8-YjZlZGU1NTZiLjc2bFRKZGs1NHdkeA')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 3v5m0 8v5M3 12h5m8 0h5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">void network</div>
+        <div class="app-description">Open void network in about:blank</div>
+      </div>
+    </article>
+
+    <!-- void network v2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://draftfolder802078.b-cdn.net/library/art-history/unit-10-YjVmZmYyMmJiLlA5V2lwTFVjZjVwSA')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://draftfolder802078.b-cdn.net/library/art-history/unit-10-YjVmZmYyMmJiLlA5V2lwTFVjZjVwSA')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 3v5m0 8v5M3 12h5m8 0h5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">void network v2</div>
+        <div class="app-description">Open void network v2 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- lumia os -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://esm.sh/burgerland@1.0.0/assets/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://esm.sh/burgerland@1.0.0/assets/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M3.5 10h17M5 15h14M8 6.5h.01M12 6.5h.01M16 6.5h.01"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">lumia os</div>
+        <div class="app-description">Open lumia os in about:blank</div>
+      </div>
+    </article>
+
+
+    <!-- secure v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/theofficalnothing-arch/securly@main/securly.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/theofficalnothing-arch/securly@main/securly.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="10" width="14" height="11" rx="2"/>
+          <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">secure v1</div>
+        <div class="app-description">Open secure v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- yun v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://yun-638303770568.us-east1.run.app/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://yun-638303770568.us-east1.run.app/')} ">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 18h10a4 4 0 0 0 .6-8A6 6 0 0 0 6 8.5 4.8 4.8 0 0 0 7 18Z"/>
+          <path d="m9 14 2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">yun v1</div>
+        <div class="app-description">Open yun v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://niigo.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://niigo.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v1</div>
+        <div class="app-description">Open niigo v1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/niigo/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/niigo/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v2</div>
+        <div class="app-description">Open niigo v2 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://niigo.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://niigo.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v3</div>
+        <div class="app-description">Open niigo v3 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/niigo/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/niigo/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v4</div>
+        <div class="app-description">Open niigo v4 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://niigo.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://niigo.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v5</div>
+        <div class="app-description">Open niigo v5 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/niigo/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/niigo/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v6</div>
+        <div class="app-description">Open niigo v6 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v7 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://niigo.s3-fips.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://niigo.s3-fips.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v7</div>
+        <div class="app-description">Open niigo v7 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- niigo v8 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://niigo.s3-fips.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://niigo.s3-fips.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">niigo v8</div>
+        <div class="app-description">Open niigo v8 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- underratedproxy -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/underratedproxy/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/underratedproxy/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">underratedproxy</div>
+        <div class="app-description">Open underratedproxy in about:blank</div>
+      </div>
+    </article>
+
+    <!-- bestubg -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/bestubg/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/bestubg/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">bestubg</div>
+        <div class="app-description">Open bestubg in about:blank</div>
+      </div>
+    </article>
+
+    <!-- bestproxyever -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/bestproxyever/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/bestproxyever/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">bestproxyever</div>
+        <div class="app-description">Open bestproxyever in about:blank</div>
+      </div>
+    </article>
+
+    <!-- passedetest -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/passedetest/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/passedetest/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">passedetest</div>
+        <div class="app-description">Open passedetest in about:blank</div>
+      </div>
+    </article>
+
+    <!-- studyharder -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/studyharder/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/studyharder/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">studyharder</div>
+        <div class="app-description">Open studyharder in about:blank</div>
+      </div>
+    </article>
+
+    <!-- upperlevel -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/upperlevel/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/upperlevel/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">upperlevel</div>
+        <div class="app-description">Open upperlevel in about:blank</div>
+      </div>
+    </article>
+
+    <!-- studyk12 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/studyk12/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/studyk12/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">studyk12</div>
+        <div class="app-description">Open studyk12 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- betterthanyou -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/betterthanyou/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/betterthanyou/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">betterthanyou</div>
+        <div class="app-description">Open betterthanyou in about:blank</div>
+      </div>
+    </article>
+
+    <!-- nogamesmiss -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/nogamesmiss/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/nogamesmiss/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">nogamesmiss</div>
+        <div class="app-description">Open nogamesmiss in about:blank</div>
+      </div>
+    </article>
+
+    <!-- proxylol -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/proxylol/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/proxylol/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">proxylol</div>
+        <div class="app-description">Open proxylol in about:blank</div>
+      </div>
+    </article>
+
+    <!-- astralwebsite -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://astralwebsite.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://astralwebsite.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">astralwebsite</div>
+        <div class="app-description">Open astralwebsite in about:blank</div>
+      </div>
+    </article>
+
+    <!-- studyforquiz -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://studyforquiz.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://studyforquiz.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">studyforquiz</div>
+        <div class="app-description">Open studyforquiz in about:blank</div>
+      </div>
+    </article>
+
+    <!-- wearebetter -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://wearebetter.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://wearebetter.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">wearebetter</div>
+        <div class="app-description">Open wearebetter in about:blank</div>
+      </div>
+    </article>
+
+    <!-- underratedsite -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://underratedsite.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://underratedsite.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">underratedsite</div>
+        <div class="app-description">Open underratedsite in about:blank</div>
+      </div>
+    </article>
+
+    <!-- thisonecostsalot -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://thisonecostsalot.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://thisonecostsalot.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">thisonecostsalot</div>
+        <div class="app-description">Open thisonecostsalot in about:blank</div>
+      </div>
+    </article>
+
+    <!-- studyharder CDN -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://studyharder.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://studyharder.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">studyharder CDN</div>
+        <div class="app-description">Open studyharder CDN in about:blank</div>
+      </div>
+    </article>
+
+    <!-- xon6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://xon6.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://xon6.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">xon6</div>
+        <div class="app-description">Open xon6 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ablurp -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ablurp.org/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ablurp.org/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ablurp</div>
+        <div class="app-description">Open ablurp in about:blank</div>
+      </div>
+    </article>
+
+    <!-- apearinghelp -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://apearinghelp.com/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://apearinghelp.com/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">apearinghelp</div>
+        <div class="app-description">Open apearinghelp in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.html 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.html 1</div>
+        <div class="app-description">Open ferndc index.html 1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.html 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.html 2</div>
+        <div class="app-description">Open ferndc index.html 2 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.html 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.html 3</div>
+        <div class="app-description">Open ferndc index.html 3 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.html 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/ferndc/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/ferndc/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.html 4</div>
+        <div class="app-description">Open ferndc index.html 4 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.html 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/ferndc/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/ferndc/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.html 5</div>
+        <div class="app-description">Open ferndc index.html 5 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.html 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/ferndc/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/ferndc/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.html 6</div>
+        <div class="app-description">Open ferndc index.html 6 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc math.html 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.amazonaws.com/math.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.amazonaws.com/math.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc math.html 1</div>
+        <div class="app-description">Open ferndc math.html 1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc math.html 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.us-east-1.amazonaws.com/math.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.us-east-1.amazonaws.com/math.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc math.html 2</div>
+        <div class="app-description">Open ferndc math.html 2 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc math.html 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.dualstack.us-east-1.amazonaws.com/math.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.dualstack.us-east-1.amazonaws.com/math.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc math.html 3</div>
+        <div class="app-description">Open ferndc math.html 3 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc math.html 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/ferndc/math.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/ferndc/math.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc math.html 4</div>
+        <div class="app-description">Open ferndc math.html 4 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc math.html 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/ferndc/math.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/ferndc/math.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc math.html 5</div>
+        <div class="app-description">Open ferndc math.html 5 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc math.html 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/ferndc/math.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/ferndc/math.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc math.html 6</div>
+        <div class="app-description">Open ferndc math.html 6 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.svg 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.amazonaws.com/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.amazonaws.com/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.svg 1</div>
+        <div class="app-description">Open ferndc index.svg 1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.svg 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.us-east-1.amazonaws.com/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.us-east-1.amazonaws.com/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.svg 2</div>
+        <div class="app-description">Open ferndc index.svg 2 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.svg 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://ferndc.s3.dualstack.us-east-1.amazonaws.com/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://ferndc.s3.dualstack.us-east-1.amazonaws.com/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.svg 3</div>
+        <div class="app-description">Open ferndc index.svg 3 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.svg 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/ferndc/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/ferndc/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.svg 4</div>
+        <div class="app-description">Open ferndc index.svg 4 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.svg 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/ferndc/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/ferndc/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.svg 5</div>
+        <div class="app-description">Open ferndc index.svg 5 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- ferndc index.svg 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/ferndc/index.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/ferndc/index.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">ferndc index.svg 6</div>
+        <div class="app-description">Open ferndc index.svg 6 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- lunaris -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://lunaris.bagatz.com/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://lunaris.bagatz.com/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">lunaris</div>
+        <div class="app-description">Open lunaris in about:blank</div>
+      </div>
+    </article>
+
+    <!-- re-vault bagatz -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://re-vault.bagatz.com/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://re-vault.bagatz.com/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">re-vault bagatz</div>
+        <div class="app-description">Open re-vault bagatz in about:blank</div>
+      </div>
+    </article>
+
+    <!-- argumentative essay -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://argumentative-essay.1776arms.com/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://argumentative-essay.1776arms.com/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">argumentative essay</div>
+        <div class="app-description">Open argumentative essay in about:blank</div>
+      </div>
+    </article>
+
+    <!-- gn-math -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://gn-math.1776arms.com/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://gn-math.1776arms.com/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">gn-math</div>
+        <div class="app-description">Open gn-math in about:blank</div>
+      </div>
+    </article>
+
+    <!-- revault olneybaptist -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://revault.olneybaptist.org/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://revault.olneybaptist.org/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">revault olneybaptist</div>
+        <div class="app-description">Open revault olneybaptist in about:blank</div>
+      </div>
+    </article>
+
+    <!-- the outsiders -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://the-outsiders.olneybaptist.org/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://the-outsiders.olneybaptist.org/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">the outsiders</div>
+        <div class="app-description">Open the outsiders in about:blank</div>
+      </div>
+    </article>
+
+    <!-- duck rigaprecast -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://duck.rigaprecast.com/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://duck.rigaprecast.com/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">duck rigaprecast</div>
+        <div class="app-description">Open duck rigaprecast in about:blank</div>
+      </div>
+    </article>
+
+    <!-- lanaris voudouris -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://lanaris.voudouris.org/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://lanaris.voudouris.org/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">lanaris voudouris</div>
+        <div class="app-description">Open lanaris voudouris in about:blank</div>
+      </div>
+    </article>
+
+    <!-- re-vault voudouris -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://re-vault.voudouris.org/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://re-vault.voudouris.org/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">re-vault voudouris</div>
+        <div class="app-description">Open re-vault voudouris in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 cdn.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 cdn.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 1 cdn.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 fastly.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://fastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://fastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 fastly.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 1 fastly.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 gcore.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://gcore.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://gcore.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 gcore.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 1 gcore.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 quantil.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://quantil.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://quantil.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 quantil.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 1 quantil.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 jsdelivr.b-cdn.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://jsdelivr.b-cdn.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://jsdelivr.b-cdn.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 jsdelivr.b-cdn.net</div>
+        <div class="app-description">Open cherrisvg 1 jsdelivr.b-cdn.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 originfastly.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://originfastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://originfastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 originfastly.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 1 originfastly.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 1 testingcf.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://testingcf.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://testingcf.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?1')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 1 testingcf.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 1 testingcf.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 cdn.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 cdn.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 2 cdn.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 fastly.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://fastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://fastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 fastly.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 2 fastly.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 gcore.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://gcore.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://gcore.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 gcore.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 2 gcore.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 quantil.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://quantil.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://quantil.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 quantil.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 2 quantil.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 jsdelivr.b-cdn.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://jsdelivr.b-cdn.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://jsdelivr.b-cdn.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 jsdelivr.b-cdn.net</div>
+        <div class="app-description">Open cherrisvg 2 jsdelivr.b-cdn.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 originfastly.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://originfastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://originfastly.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 originfastly.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 2 originfastly.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cherrisvg 2 testingcf.jsdelivr.net -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://testingcf.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://testingcf.jsdelivr.net/gh/username9927282/cherrisvg@main/index.svg?2')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cherrisvg 2 testingcf.jsdelivr.net</div>
+        <div class="app-description">Open cherrisvg 2 testingcf.jsdelivr.net in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z s3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cat4z.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cat4z.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z s3</div>
+        <div class="app-description">Open cat4z s3 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z s3 us-east-1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cat4z.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cat4z.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z s3 us-east-1</div>
+        <div class="app-description">Open cat4z s3 us-east-1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z s3 external -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cat4z.s3-external-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cat4z.s3-external-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z s3 external</div>
+        <div class="app-description">Open cat4z s3 external in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z s3 path -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/cat4z/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/cat4z/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z s3 path</div>
+        <div class="app-description">Open cat4z s3 path in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z s3 path us-east-1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/cat4z/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/cat4z/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z s3 path us-east-1</div>
+        <div class="app-description">Open cat4z s3 path us-east-1 in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z s3 path external -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3-external-1.amazonaws.com/cat4z/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3-external-1.amazonaws.com/cat4z/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z s3 path external</div>
+        <div class="app-description">Open cat4z s3 path external in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z storage google -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://storage.googleapis.com/cat4z/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://storage.googleapis.com/cat4z/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z storage google</div>
+        <div class="app-description">Open cat4z storage google in about:blank</div>
+      </div>
+    </article>
+
+    <!-- cat4z google storage -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cat4z.storage.googleapis.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cat4z.storage.googleapis.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">cat4z google storage</div>
+        <div class="app-description">Open cat4z google storage in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 1: task4z proxy mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://jsd-proxy.ygxz.in/gh/task4z/classroom-15x/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://jsd-proxy.ygxz.in/gh/task4z/classroom-15x/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z proxy mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 2: task4z jsdelivr mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://jsdelivr.b-cdn.net/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://jsdelivr.b-cdn.net/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z jsdelivr mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 3: task4z esm mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://esm.sh/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://esm.sh/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z esm mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 4: task4z cdn esm mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.esm.sh/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.esm.sh/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z cdn esm mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 5: task4z raw esm mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://raw.esm.sh/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://raw.esm.sh/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z raw esm mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 6: task4z statically mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.statically.io/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.statically.io/gh/task4z/classroom-15x@main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z statically mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 7: task4z staticdelivr mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.staticdelivr.com/gh/task4z/classroom-15x/main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.staticdelivr.com/gh/task4z/classroom-15x/main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z staticdelivr mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 8: task4z githack mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://raw.githack.com/task4z/classroom-15x/main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://raw.githack.com/task4z/classroom-15x/main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z githack mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 9: task4z rawcedn mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://rawcedn.githack.com/task4z/classroom-15x/main/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://rawcedn.githack.com/task4z/classroom-15x/main/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z rawcedn mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 10: task4z onmicrosoft mirror -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://jsd.onmicrosoft.cn/gh/task4z/classroom-15x/images/1da4a47862/catclass-cloak/embed2.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://jsd.onmicrosoft.cn/gh/task4z/classroom-15x/images/1da4a47862/catclass-cloak/embed2.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">task4z onmicrosoft mirror</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 11: community Apps Script -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://script.google.com/a/macros/mymail.lausd.net/s/AKfycbwnC76NleF57SnXAgL2me-I92MRvsbRbajf76wj5lOCliEdVNoOstU1_6txJaH3L_6l/exec')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://script.google.com/a/macros/mymail.lausd.net/s/AKfycbwnC76NleF57SnXAgL2me-I92MRvsbRbajf76wj5lOCliEdVNoOstU1_6txJaH3L_6l/exec')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">community Apps Script</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 12: riftaway SEeE28s9g5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/SEeE28s9g5.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/SEeE28s9g5.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">riftaway SEeE28s9g5</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 13: riftaway yUK4ttsSrd -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/yUK4ttsSrd.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/yUK4ttsSrd.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">riftaway yUK4ttsSrd</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 14: riftaway 63rUmjCVFu -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/63rUmjCVFu.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/63rUmjCVFu.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">riftaway 63rUmjCVFu</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 15: riftaway yVDYBLiTaP -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/yVDYBLiTaP.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/yVDYBLiTaP.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">riftaway yVDYBLiTaP</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 16: riftaway Z7tuz8Piyp -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/Z7tuz8Piyp.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/Z7tuz8Piyp.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">riftaway Z7tuz8Piyp</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 17: riftaway PubY27Mjisa -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/PubY27Mjisa.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/riftaway7-code/svg@fac8fc5/links/PubY27Mjisa.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">riftaway PubY27Mjisa</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 18: PrismDev3 learn 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://cdn.jsdelivr.net/gh/PrismDev3/chalkle-auto@main/learn-1.svg')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://cdn.jsdelivr.net/gh/PrismDev3/chalkle-auto@main/learn-1.svg')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">PrismDev3 learn 1</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 19: thebestcloudsite -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://thebestcloudsite.b-cdn.net/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://thebestcloudsite.b-cdn.net/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">thebestcloudsite</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 20: sagedesk mirror 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://sagedesk.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://sagedesk.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sagedesk mirror 1</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 21: sagedesk mirror 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://sagedesk.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://sagedesk.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sagedesk mirror 2</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 22: sagedesk mirror 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://sagedesk.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://sagedesk.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sagedesk mirror 3</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 23: sagedesk mirror 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/sagedesk/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/sagedesk/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sagedesk mirror 4</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 24: sagedesk mirror 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/sagedesk/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/sagedesk/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sagedesk mirror 5</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 25: sagedesk mirror 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/sagedesk/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/sagedesk/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">sagedesk mirror 6</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 26: brightloft mirror 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://brightloft.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://brightloft.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">brightloft mirror 1</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 27: brightloft mirror 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://brightloft.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://brightloft.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">brightloft mirror 2</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 28: brightloft mirror 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://brightloft.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://brightloft.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">brightloft mirror 3</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 29: brightloft mirror 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/brightloft/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/brightloft/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">brightloft mirror 4</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 30: brightloft mirror 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/brightloft/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/brightloft/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">brightloft mirror 5</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 31: brightloft mirror 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/brightloft/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/brightloft/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">brightloft mirror 6</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 32: t53li04c mirror 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://t53li04c.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://t53li04c.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">t53li04c mirror 1</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 33: t53li04c mirror 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://t53li04c.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://t53li04c.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">t53li04c mirror 2</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 34: t53li04c mirror 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://t53li04c.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://t53li04c.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">t53li04c mirror 3</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 35: t53li04c mirror 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/t53li04c/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/t53li04c/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">t53li04c mirror 4</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 36: t53li04c mirror 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/t53li04c/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/t53li04c/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">t53li04c mirror 5</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 37: t53li04c mirror 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/t53li04c/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/t53li04c/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">t53li04c mirror 6</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 38: hpvtncl9 mirror 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://hpvtncl9.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://hpvtncl9.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">hpvtncl9 mirror 1</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 39: hpvtncl9 mirror 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://hpvtncl9.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://hpvtncl9.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">hpvtncl9 mirror 2</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 40: hpvtncl9 mirror 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://hpvtncl9.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://hpvtncl9.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">hpvtncl9 mirror 3</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 41: hpvtncl9 mirror 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/hpvtncl9/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/hpvtncl9/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">hpvtncl9 mirror 4</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 42: hpvtncl9 mirror 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/hpvtncl9/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/hpvtncl9/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">hpvtncl9 mirror 5</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 43: hpvtncl9 mirror 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/hpvtncl9/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/hpvtncl9/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">hpvtncl9 mirror 6</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 44: c4lowrb4 mirror 1 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://c4lowrb4.s3.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://c4lowrb4.s3.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">c4lowrb4 mirror 1</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 45: c4lowrb4 mirror 2 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://c4lowrb4.s3.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://c4lowrb4.s3.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">c4lowrb4 mirror 2</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 46: c4lowrb4 mirror 3 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://c4lowrb4.s3.dualstack.us-east-1.amazonaws.com/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://c4lowrb4.s3.dualstack.us-east-1.amazonaws.com/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">c4lowrb4 mirror 3</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 47: c4lowrb4 mirror 4 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.amazonaws.com/c4lowrb4/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.amazonaws.com/c4lowrb4/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">c4lowrb4 mirror 4</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 48: c4lowrb4 mirror 5 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.us-east-1.amazonaws.com/c4lowrb4/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.us-east-1.amazonaws.com/c4lowrb4/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">c4lowrb4 mirror 5</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 49: c4lowrb4 mirror 6 -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://s3.dualstack.us-east-1.amazonaws.com/c4lowrb4/index.html')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://s3.dualstack.us-east-1.amazonaws.com/c4lowrb4/index.html')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">c4lowrb4 mirror 6</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 50: strawberri -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://strawberri.lol/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://strawberri.lol/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">strawberri</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+
+    <!-- Added community link 51: bumeducation -->
+    <article class="app-card" role="link" tabindex="0"
+      onclick="openSite('https://bumeducation.cfd/')"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSite('https://bumeducation.cfd/')}">
+      <div class="app-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="app-name">bumeducation</div>
+        <div class="app-description">Open in about:blank</div>
+      </div>
+    </article>
+  </section>
+</main>
+
+<script>
+// Lightweight animated rain; automatically adapts to the screen size.
+(() => {
+  const canvas = document.getElementById('rain');
+  const ctx = canvas.getContext('2d');
+  let width = 0, height = 0, drops = [];
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = canvas.clientWidth = canvas.parentElement.clientWidth;
+    height = canvas.clientHeight = Math.max(canvas.parentElement.clientHeight, window.innerHeight);
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const count = Math.min(230, Math.floor(width / 5));
+    drops = Array.from({ length: count }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      length: 8 + Math.random() * 19,
+      speed: 3 + Math.random() * 7,
+      opacity: .12 + Math.random() * .34
+    }));
+    if (reducedMotion) draw(false);
+  }
+
+  function draw(animate = true) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.lineWidth = .8;
+    for (const drop of drops) {
+      ctx.strokeStyle = `rgba(165, 215, 245, ${drop.opacity})`;
+      ctx.beginPath();
+      ctx.moveTo(drop.x, drop.y);
+      ctx.lineTo(drop.x - 2.5, drop.y + drop.length);
+      ctx.stroke();
+      if (animate) {
+        drop.y += drop.speed;
+        drop.x -= .8;
+        if (drop.y > height + drop.length) {
+          drop.y = -drop.length;
+          drop.x = Math.random() * width;
+        }
+        if (drop.x < -5) drop.x = width + 5;
+      }
+    }
+    if (animate && !reducedMotion) requestAnimationFrame(() => draw(true));
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  if (!reducedMotion) draw(true);
+})();
+
+function openSite(url) {
+  // Open a separate popup window with an about:blank address.
+  const popup = window.open(
+    "about:blank",
+    "_blank",
+    "popup=yes,width=1100,height=750,resizable=yes,scrollbars=yes"
+  );
+
+  if (!popup) {
+    alert("Popup blocked. Allow pop-ups for this page and try again.");
+    return;
+  }
+
+  popup.document.open();
+  popup.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title></title>
+<style>
+html,body,iframe {
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  border:0;
+  overflow:hidden;
+  background:#fff;
+}
+</style>
+</head>
+<body>
+<iframe src="${url}" title="Website"></iframe>
+</body>
+</html>`);
+  popup.document.close();
+}
+</script>
+
+</body>
+</html>
